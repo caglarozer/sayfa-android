@@ -1,0 +1,446 @@
+name: APK oluştur
+
+# Bu tek dosya Android projesini kendisi oluşturur ve APK'yı derler.
+# Dış eklenti kullanmaz; GitHub sunucusundaki hazır Java ve Android araçlarıyla çalışır.
+
+on:
+  workflow_dispatch:
+    inputs:
+      web_app_url:
+        description: "Apps Script adresi (/exec ile biten). Boş bırakabilirsin; uygulama ilk açılışta sorar."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Java ve Gradle hazırla
+        run: |
+          if [ -n "$JAVA_HOME_17_X64" ]; then echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"; fi
+          curl -sSL -o gradle.zip https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          unzip -q gradle.zip -d "$HOME"
+          echo "$HOME/gradle-8.7/bin" >> "$GITHUB_PATH"
+          echo "Android SDK: $ANDROID_HOME"
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ -x "$SDKM" ]; then yes | "$SDKM" --licenses > /dev/null || true; fi
+
+      - name: Proje dosyalarını oluştur
+        run: |
+          mkdir -p "$(dirname 'settings.gradle')"
+          cat > 'settings.gradle' <<'SAYFA_EOF'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = 'Sayfa'
+          include ':app'
+          SAYFA_EOF
+          mkdir -p "$(dirname 'build.gradle')"
+          cat > 'build.gradle' <<'SAYFA_EOF'
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+          }
+          SAYFA_EOF
+          mkdir -p "$(dirname 'gradle.properties')"
+          cat > 'gradle.properties' <<'SAYFA_EOF'
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          SAYFA_EOF
+          mkdir -p "$(dirname 'app/build.gradle')"
+          cat > 'app/build.gradle' <<'SAYFA_EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.sayfa.kitap'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId 'com.sayfa.kitap'
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 1
+                  versionName '2.5'
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          SAYFA_EOF
+          mkdir -p "$(dirname 'app/src/main/AndroidManifest.xml')"
+          cat > 'app/src/main/AndroidManifest.xml' <<'SAYFA_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+              <application
+                  android:allowBackup="true"
+                  android:hardwareAccelerated="true"
+                  android:icon="@drawable/ic_launcher"
+                  android:roundIcon="@drawable/ic_launcher"
+                  android:label="@string/app_name"
+                  android:theme="@style/AppTheme"
+                  android:usesCleartextTraffic="false">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
+                      android:windowSoftInputMode="adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          SAYFA_EOF
+          mkdir -p "$(dirname 'app/src/main/res/values/strings.xml')"
+          cat > 'app/src/main/res/values/strings.xml' <<'SAYFA_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">Sayfa</string>
+              <!-- Apps Script web uygulamasının /exec ile biten adresi. Boş bırakılırsa uygulama ilk açılışta sorar. -->
+              <string name="app_url"></string>
+          </resources>
+          SAYFA_EOF
+          mkdir -p "$(dirname 'app/src/main/res/values/colors.xml')"
+          cat > 'app/src/main/res/values/colors.xml' <<'SAYFA_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="walnut">#1A120C</color>
+              <color name="walnut_bar">#241910</color>
+          </resources>
+          SAYFA_EOF
+          mkdir -p "$(dirname 'app/src/main/res/values/styles.xml')"
+          cat > 'app/src/main/res/values/styles.xml' <<'SAYFA_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
+                  <item name="android:windowBackground">@color/walnut</item>
+                  <item name="android:statusBarColor">@color/walnut_bar</item>
+                  <item name="android:navigationBarColor">@color/walnut_bar</item>
+                  <item name="android:colorPrimary">@color/walnut_bar</item>
+                  <item name="android:colorAccent">#C9A15F</item>
+              </style>
+          </resources>
+          SAYFA_EOF
+          mkdir -p "$(dirname 'app/src/main/res/drawable/ic_launcher.xml')"
+          cat > 'app/src/main/res/drawable/ic_launcher.xml' <<'SAYFA_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="48dp" android:height="48dp"
+              android:viewportWidth="48" android:viewportHeight="48">
+              <path android:fillColor="#2A1D14" android:pathData="M10,0h28a10,10 0 0 1 10,10v28a10,10 0 0 1 -10,10h-28a10,10 0 0 1 -10,-10v-28a10,10 0 0 1 10,-10z"/>
+              <path android:fillColor="#3B2A1D" android:pathData="M24,4a16,11 0 1 1 0,22a16,11 0 1 1 0,-22z"/>
+              <path android:fillColor="#D6B069" android:pathData="M9.5,15.5h1.2v17.5l13.3,2.2l13.3,-2.2v-17.5h1.2v18.5l-14.5,2.6l-14.5,-2.6z"/>
+              <path android:fillColor="#F3EAD8" android:pathData="M24,17.5l-12.5,-2.5v17.2l12.5,2.3z"/>
+              <path android:fillColor="#E9DEC8" android:pathData="M24,17.5l12.5,-2.5v17.2l-12.5,2.3z"/>
+              <path android:strokeColor="#8C785F" android:strokeWidth="0.7" android:pathData="M14,19.5l7.5,1.2M14,22.5l7.5,1.2M14,25.5l7.5,1.2M14,28.5l7.5,1.2M26.5,20.7l7.5,-1.2M26.5,23.7l7.5,-1.2M26.5,26.7l7.5,-1.2M26.5,29.7l7.5,-1.2"/>
+              <path android:strokeColor="#967034" android:strokeWidth="0.6" android:pathData="M24,17.5v17"/>
+              <path android:fillColor="#AA2C22" android:pathData="M29.8,14.2h2.4v22.8l-1.2,-1.1l-1.2,1.1z"/>
+          </vector>
+          SAYFA_EOF
+          mkdir -p "$(dirname 'app/src/main/java/com/sayfa/kitap/MainActivity.java')"
+          cat > 'app/src/main/java/com/sayfa/kitap/MainActivity.java' <<'SAYFA_EOF'
+          package com.sayfa.kitap;
+
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.graphics.Color;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.webkit.CookieManager;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.ValueCallback;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebResourceError;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          /**
+           * Sayfa — Kitap Okuyucu
+           * Apps Script web uygulamasını tam ekran bir WebView içinde açar.
+           * Dosya seçme (PDF ekleme), ses, kalıcı depolama ve geri tuşu desteklenir.
+           */
+          public class MainActivity extends Activity {
+
+              private static final int FILE_REQUEST = 7;
+              private static final String PREFIX = "https://script.google.com/";
+
+              private WebView web;
+              private ValueCallback<Uri[]> fileCallback;
+              private SharedPreferences prefs;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  prefs = getSharedPreferences("sayfa", MODE_PRIVATE);
+
+                  web = new WebView(this);
+                  web.setBackgroundColor(Color.parseColor("#1A120C"));
+                  setContentView(web);
+
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setDatabaseEnabled(true);
+                  s.setMediaPlaybackRequiresUserGesture(false);
+                  s.setUseWideViewPort(true);
+                  s.setLoadWithOverviewMode(true);
+                  s.setSupportZoom(false);
+                  s.setBuiltInZoomControls(false);
+                  s.setAllowFileAccess(false);
+                  s.setJavaScriptCanOpenWindowsAutomatically(false);
+                  s.setCacheMode(WebSettings.LOAD_DEFAULT);
+                  // "; wv" işareti kaldırılır: Google bazı sayfaları gömülü tarayıcıda farklı gösterebiliyor.
+                  s.setUserAgentString(s.getUserAgentString().replace("; wv", "") + " SayfaApp/1.0");
+
+                  CookieManager cookies = CookieManager.getInstance();
+                  cookies.setAcceptCookie(true);
+                  cookies.setAcceptThirdPartyCookies(web, true);
+
+                  web.addJavascriptInterface(new Bridge(), "SayfaApp");
+
+                  web.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                          Uri uri = request.getUrl();
+                          String host = uri.getHost() == null ? "" : uri.getHost();
+                          if (host.endsWith("google.com") || host.endsWith("googleusercontent.com")
+                                  || host.endsWith("gstatic.com") || host.endsWith("googleapis.com")) {
+                              return false; // uygulamanın kendi sayfaları içeride açılır
+                          }
+                          try {
+                              startActivity(new Intent(Intent.ACTION_VIEW, uri)); // diğer bağlantılar tarayıcıda
+                          } catch (Exception ignored) {
+                          }
+                          return true;
+                      }
+
+                      @Override
+                      public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                          if (request.isForMainFrame()) {
+                              showMessage("Bağlantı kurulamadı",
+                                      "Rafına ulaşmak için internet bağlantısı gerekiyor. Bağlantını kontrol edip tekrar dene.", true);
+                          }
+                      }
+                  });
+
+                  web.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                          if (fileCallback != null) {
+                              fileCallback.onReceiveValue(null);
+                          }
+                          fileCallback = callback;
+
+                          boolean json = false;
+                          String[] types = params.getAcceptTypes();
+                          if (types != null) {
+                              for (String t : types) {
+                                  if (t != null && t.contains("json")) json = true;
+                              }
+                          }
+                          Intent pick = new Intent(Intent.ACTION_GET_CONTENT);
+                          pick.addCategory(Intent.CATEGORY_OPENABLE);
+                          pick.setType(json ? "*/*" : "application/pdf");
+                          try {
+                              startActivityForResult(Intent.createChooser(pick, json ? "Yedek dosyası seç" : "PDF kitap seç"), FILE_REQUEST);
+                          } catch (Exception e) {
+                              fileCallback = null;
+                              return false;
+                          }
+                          return true;
+                      }
+                  });
+
+                  if (savedInstanceState != null) {
+                      web.restoreState(savedInstanceState);
+                  } else {
+                      start();
+                  }
+              }
+
+              private void start() {
+                  String url = prefs.getString("url", getString(R.string.app_url));
+                  if (url == null || !url.trim().startsWith(PREFIX)) {
+                      showSetup();
+                  } else {
+                      web.loadUrl(url.trim());
+                  }
+              }
+
+              private static final String PAGE_HEAD =
+                      "<!doctype html><html lang='tr'><head><meta charset='utf-8'>"
+                      + "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+                      + "<style>body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;"
+                      + "background:radial-gradient(ellipse at 50% 0%,#3B2A1D,#1A120C 70%);color:#F1E7D3;"
+                      + "font-family:Georgia,serif;padding:24px;box-sizing:border-box}"
+                      + ".c{max-width:420px;width:100%}h1{color:#E4C27E;font-weight:600;font-size:34px;margin:0 0 10px}"
+                      + "p{line-height:1.5;color:#E9DDC4;font-size:17px}"
+                      + "input{width:100%;box-sizing:border-box;height:52px;border-radius:6px;border:1px solid #6E4F37;"
+                      + "background:#FBF5E8;color:#2A1D15;font-size:16px;padding:0 12px;margin:8px 0 14px}"
+                      + "button{width:100%;height:54px;border:0;border-radius:6px;font-size:19px;font-family:Georgia,serif;"
+                      + "background:linear-gradient(180deg,#E0C080,#C9A15F 45%,#9E7736);color:#1E140D;margin-top:8px}"
+                      + "button.l{background:transparent;color:#E2C58C;text-decoration:underline;font-size:16px}"
+                      + ".e{color:#F2A195;min-height:1.3em}</style></head><body><div class='c'>";
+
+              private void showSetup() {
+                  String html = PAGE_HEAD
+                          + "<h1>Sayfa</h1>"
+                          + "<p>Uygulamanın bağlanacağı Apps Script web uygulaması adresini yapıştır. "
+                          + "Adres <b>https://script.google.com/</b> ile başlar ve <b>/exec</b> ile biter.</p>"
+                          + "<input id='u' type='url' inputmode='url' placeholder='https://script.google.com/macros/s/…/exec'>"
+                          + "<div class='e' id='e'></div>"
+                          + "<button onclick=\"var v=document.getElementById('u').value.trim();"
+                          + "if(v.indexOf('" + PREFIX + "')!==0){document.getElementById('e').textContent='Adres https://script.google.com/ ile başlamalı.';return;}"
+                          + "SayfaApp.setUrl(v)\">Rafımı aç</button>"
+                          + "</div></body></html>";
+                  web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null);
+              }
+
+              private void showMessage(String title, String text, boolean retry) {
+                  String html = PAGE_HEAD + "<h1>" + title + "</h1><p>" + text + "</p>"
+                          + (retry ? "<button onclick='SayfaApp.retry()'>Tekrar dene</button>" : "")
+                          + "<button class='l' onclick='SayfaApp.reset()'>Uygulama adresini değiştir</button>"
+                          + "</div></body></html>";
+                  web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null);
+              }
+
+              /** Kurulum ve hata sayfalarından çağrılan küçük köprü. */
+              private class Bridge {
+                  @JavascriptInterface
+                  public void setUrl(final String url) {
+                      if (url == null || !url.trim().startsWith(PREFIX)) return;
+                      prefs.edit().putString("url", url.trim()).apply();
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              web.loadUrl(url.trim());
+                          }
+                      });
+                  }
+
+                  @JavascriptInterface
+                  public void retry() {
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              start();
+                          }
+                      });
+                  }
+
+                  @JavascriptInterface
+                  public void reset() {
+                      prefs.edit().remove("url").apply();
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              showSetup();
+                          }
+                      });
+                  }
+              }
+
+              @Override
+              protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+                  if (requestCode == FILE_REQUEST) {
+                      if (fileCallback != null) {
+                          Uri[] result = null;
+                          if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                              result = new Uri[]{data.getData()};
+                          }
+                          fileCallback.onReceiveValue(result);
+                          fileCallback = null;
+                      }
+                      return;
+                  }
+                  super.onActivityResult(requestCode, resultCode, data);
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (web != null && web.canGoBack()) {
+                      web.goBack();
+                  } else {
+                      moveTaskToBack(true); // uygulamayı kapatmadan arka plana al
+                  }
+              }
+
+              @Override
+              protected void onSaveInstanceState(Bundle outState) {
+                  super.onSaveInstanceState(outState);
+                  web.saveState(outState);
+              }
+
+              @Override
+              protected void onPause() {
+                  super.onPause();
+                  web.onPause();
+                  CookieManager.getInstance().flush();
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  web.onResume();
+              }
+
+              @Override
+              protected void onDestroy() {
+                  if (web != null) {
+                      web.destroy();
+                  }
+                  super.onDestroy();
+              }
+          }
+          SAYFA_EOF
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "Proje dosyaları hazır"
+
+      - name: Uygulama adresini yerleştir
+        env:
+          WEB_APP_URL: ${{ github.event.inputs.web_app_url }}
+        run: |
+          if [ -n "$WEB_APP_URL" ]; then
+            case "$WEB_APP_URL" in
+              https://script.google.com/*) ;;
+              *) echo "Adres https://script.google.com/ ile başlamalı"; exit 1 ;;
+            esac
+            python3 -c "import os,re,html;p='app/src/main/res/values/strings.xml';s=open(p,encoding='utf-8').read();u=html.escape(os.environ['WEB_APP_URL'].strip(),quote=False);open(p,'w',encoding='utf-8').write(re.sub(r'<string name=\"app_url\">.*?</string>','<string name=\"app_url\">'+u+'</string>',s))"
+          fi
+
+      - name: APK derle
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: APK'yı yayınla (Releases)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk Sayfa.apk
+          gh release create "v${{ github.run_number }}" Sayfa.apk --repo "${{ github.repository }}" --title "Sayfa ${{ github.run_number }}" --notes "Android telefonda bu sayfayı açıp Sayfa.apk dosyasına dokun."
